@@ -1,0 +1,67 @@
+---
+
+- name: Apply port-security and DROPZONE policies
+  gather_facts: false
+  hosts: ~^switch_.+$,&~^active$
+  serial: 4 # not too agressive
+  vars_files:
+  - vault.yml
+  vars:
+    ignore_vlans:
+    - 5
+    - 10
+    - 58
+    - 59
+    
+  
+  pre_tasks:
+  
+  - name: Gather IOS facts
+    cisco.ios.ios_facts:
+      gather_subset: config
+      gather_network_resources:
+      - interfaces
+      - l2_interfaces
+      - l3_interfaces
+  
+  - name: Checking if I am on the correct device
+    assert:
+      that: ( inventory_hostname == ansible_net_hostname ) or ( configured_hostname == ansible_net_hostname )
+      success_msg: "Correct device, {{ ansible_net_hostname }}"
+      fail_msg: "Incorrect device, {{ ansible_net_hostname }}"
+  
+  tasks:
+
+  - name: Print something on screen
+    ansible.builtin.debug:
+      var: item.access.vlan
+    loop: "{{ ansible_facts.network_resources.l2_interfaces }}"
+    loop_control:
+      label: "Evaluating {{ item.name }} for MAB"
+    when:
+      - item.mode is defined
+      - item.mode == "access"
+      - item.access.vlan not in ignore_vlans
+      
+
+# Apply changes
+
+  
+#  - name: Check for port-security or authentication lines and add sticky mac if not present - except vlans 5 and 10
+#    cisco.ios.ios_config:
+#      lines:
+#      - "source template DefaultWiredDot1xClosedAuth"
+#      parents:
+#      - "interface {{ item.stdout[1:-1] }}"
+#    loop: "{{ iface_name.results }}"
+#    loop_control:
+#      index_var: lindex
+#      label: "MAB {{ item.stdout[1:-1] }}"
+#    when:
+#    - access_iface_config.results[lindex].skipped is not defined
+#    #- iface_oper_state.results[lindex].stdout[0] != "2"
+#    - access_iface_config.results[lindex].stdout is not search("switchport access vlan 5")
+#    - access_iface_config.results[lindex].stdout is not search("switchport access vlan 10")
+#    - item.stdout[1:-1] is not match("Ap")
+
+ 
